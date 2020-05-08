@@ -1,8 +1,10 @@
-﻿alter procedure UpgradeStudentsProcedure 
+CREATE procedure UpgradeStudentsProcedure 
 	@Studies NVARCHAR(100), 
 	@Semester INT, 
-	@IdEnrollment INT = -2,
-	@StartDate DateTime = null OUTPUT 
+	@IdEnrollment INT  OUTPUT,
+	@StartDate DateTime OUTPUT, 
+	@Error INT OUTPUT
+
 
 AS
 BEGIN
@@ -10,22 +12,29 @@ BEGIN
 	SET XACT_ABORT ON
 	BEGIN TRAN
 
+	Declare @ERR NVARCHAR(100);
+	SET @Error = 0; 
+
 	--Check if studies exist in DB
 	DECLARE @IdStudies INT = (SELECT IdStudy FROM Studies WHERE Name=@Studies) 
 	IF @IdStudies IS NULL 
-	BEGIN
-		RAISERROR ('Studies do not exist',1,1)
-		ROLLBACK
-		RETURN
-	END
+		BEGIN			
+			ROLLBACK TRAN
+			SET @Error = 1; 
+			SET @ERR ='Studies do not exist'; 
+			RAISERROR (@ERR,1,1)
+			RETURN 
+		END
 
 	--Check if enrollment for this studies and semester exist
 	DECLARE @Old_IdEnrollment INT = (SELECT IdEnrollment FROM Enrollment WHERE IdStudy=@IdStudies AND Semester=@Semester)
 	IF @Old_IdEnrollment IS NULL
 		BEGIN
-			RAISERROR ('No current enrollment for this studies and semester - nothing to upgrade',1,1)
-			ROLLBACK
-			RETURN
+			ROLLBACK TRAN
+			SET @Error = 2; 
+			SET @ERR = 'No current enrollment for this studies and semester - nothing to upgrade';
+			RAISERROR (@ERR,2,2)
+			RETURN 
 		END
 	
 	--Check if enrollment for the next semester exists for the given studies
@@ -46,8 +55,6 @@ BEGIN
 	-- Return PARAMS
 	SET @StartDate = (Select StartDate from Enrollment where IdEnrollment=@IdEnrollment)
 
-	COMMIT
+	COMMIT TRAN
 
-	return @IdEnrollment
 END
-	
